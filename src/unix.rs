@@ -17,7 +17,7 @@ pub struct MapData {
     owner: bool,
 
     //File descriptor to our open mapping
-    map_fd: RawFd,
+    pub map_fd: RawFd,
 
     //Shared mapping uid
     pub unique_id: String,
@@ -60,7 +60,6 @@ impl Drop for MapData {
                 };
             }
 
-            trace!("close({})", self.map_fd);
             if let Err(_e) = close(self.map_fd) {
                 debug!(
                     "os_impl::Linux : Failed to close() shared memory file descriptor : {}",
@@ -102,46 +101,49 @@ pub fn create_mapping(unique_id: &str, map_size: usize) -> Result<MapData, Shmem
         Err(e) => return Err(ShmemError::MapCreateFailed(e as u32)),
     };
 
-    let mut new_map: MapData = MapData {
-        owner: true,
-        unique_id: String::from(unique_id),
-        map_fd: shmem_fd,
-        map_size,
-        map_ptr: null_mut(),
-    };
+    let map_fd = shmem_fd;
+    let unique_id = String::from(unique_id);
 
     //Enlarge the memory descriptor file size to the requested map size
     debug!("Creating memory mapping");
-    trace!("ftruncate({}, {})", new_map.map_fd, new_map.map_size);
-    match ftruncate(new_map.map_fd, new_map.map_size as _) {
+    trace!("ftruncate({}, {})", map_fd, map_size);
+    match ftruncate(map_fd, map_size as _) {
         Ok(_) => {}
         Err(e) => return Err(ShmemError::UnknownOsError(e as u32)),
     };
 
     //Put the mapping in our address space
     debug!("Loading mapping into address space");
-    new_map.map_ptr = match unsafe {
+    let map_ptr = match unsafe {
         mmap(
             null_mut(),                                   //Desired addr
-            new_map.map_size,                             //size of mapping
+            map_size,                                     //size of mapping
             ProtFlags::PROT_READ | ProtFlags::PROT_WRITE, //Permissions on pages
             MapFlags::MAP_SHARED,                         //What kind of mapping
-            new_map.map_fd,                               //fd
+            map_fd,                                       //fd
             0,                                            //Offset into fd
         )
     } {
         Ok(v) => {
             trace!(
                 "mmap(NULL, {}, {:X}, {:X}, {}, 0) == {:p}",
-                new_map.map_size,
+                map_size,
                 ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
                 MapFlags::MAP_SHARED,
-                new_map.map_fd,
+                map_fd,
                 v
             );
             v as *mut _
         }
         Err(e) => return Err(ShmemError::MapCreateFailed(e as u32)),
+    };
+
+    let mut new_map: MapData = MapData {
+        owner: true,
+        unique_id,
+        map_fd,
+        map_size,
+        map_ptr,
     };
 
     Ok(new_map)
@@ -173,44 +175,46 @@ pub fn open_mapping(
         Err(e) => return Err(ShmemError::MapOpenFailed(e as u32)),
     };
 
-    let mut new_map: MapData = MapData {
-        owner: false,
-        unique_id: String::from(unique_id),
-        map_fd: shmem_fd,
-        map_size: 0,
-        map_ptr: null_mut(),
-    };
+    let map_fd = shmem_fd;
+    let unique_id = String::from(unique_id);
 
     //Get mmap size
-    new_map.map_size = match fstat(new_map.map_fd) {
+    let map_size = match fstat(map_fd) {
         Ok(v) => v.st_size as usize,
         Err(e) => return Err(ShmemError::MapOpenFailed(e as u32)),
     };
 
     //Map memory into our address space
     debug!("Loading mapping into address space");
-    new_map.map_ptr = match unsafe {
+    let map_ptr = match unsafe {
         mmap(
             null_mut(),                                   //Desired addr
-            new_map.map_size,                             //size of mapping
+            map_size,                                     //size of mapping
             ProtFlags::PROT_READ | ProtFlags::PROT_WRITE, //Permissions on pages
             MapFlags::MAP_SHARED,                         //What kind of mapping
-            new_map.map_fd,                               //fd
+            map_fd,                                       //fd
             0,                                            //Offset into fd
         )
     } {
         Ok(v) => {
             trace!(
                 "mmap(NULL, {}, {:X}, {:X}, {}, 0) == {:p}",
-                new_map.map_size,
+                map_size,
                 ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
                 MapFlags::MAP_SHARED,
-                new_map.map_fd,
+                map_fd,
                 v
             );
             v as *mut _
         }
         Err(e) => return Err(ShmemError::MapOpenFailed(e as u32)),
+    };
+    let mut new_map: MapData = MapData {
+        owner: false,
+        unique_id,
+        map_fd,
+        map_size: 0,
+        map_ptr: null_mut(),
     };
 
     Ok(new_map)

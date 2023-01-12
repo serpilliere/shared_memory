@@ -275,4 +275,13 @@ impl Shmem {
     pub unsafe fn as_slice_mut(&mut self) -> &mut [u8] {
         std::slice::from_raw_parts_mut(self.as_ptr(), self.len())
     }
+
+    #[cfg(target_os="windows")]
+    pub fn map_id(&self) -> windows::FileMapping {
+        self.mapping.file_map
+    }
+    #[cfg(any(target_os="freebsd", target_os="linux", target_os="macos"))]
+    pub fn map_id(&self) -> i32 {
+        self.mapping.map_fd as i32
+    }
 }
