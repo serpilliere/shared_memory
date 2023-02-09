@@ -17,7 +17,7 @@ pub struct MapData {
     owner: bool,
 
     //File descriptor to our open mapping
-    pub map_fd: RawFd,
+    pub map_fd: Option<RawFd>,
 
     //Shared mapping uid
     pub unique_id: String,
@@ -49,18 +49,17 @@ impl Drop for MapData {
             };
         }
 
-        //Unlink shmem
-        if self.map_fd != 0 {
-            //unlink shmem if we created it
-            if self.owner {
-                debug!("Deleting persistent mapping");
-                trace!("shm_unlink({})", self.unique_id.as_str());
-                if let Err(_e) = shm_unlink(self.unique_id.as_str()) {
-                    debug!("Failed to shm_unlink() shared memory : {}", _e);
-                };
-            }
+        // Unlink shmem if we created it
+        if self.owner {
+            debug!("Deleting persistent mapping");
+            debug!("shm_unlink({})", self.unique_id.as_str());
+            if let Err(_e) = shm_unlink(self.unique_id.as_str()) {
+                debug!("Failed to shm_unlink() shared memory : {}", _e);
+            };
+        }
 
-            if let Err(_e) = close(self.map_fd) {
+        if let Some(map_fd) = self.map_fd {
+            if let Err(_e) = close(map_fd) {
                 debug!(
                     "os_impl::Linux : Failed to close() shared memory file descriptor : {}",
                     _e
@@ -141,7 +140,7 @@ pub fn create_mapping(unique_id: &str, map_size: usize) -> Result<MapData, Shmem
     let mut new_map: MapData = MapData {
         owner: true,
         unique_id,
-        map_fd,
+        map_fd: Some(map_fd),
         map_size,
         map_ptr,
     };
@@ -212,9 +211,9 @@ pub fn open_mapping(
     let mut new_map: MapData = MapData {
         owner: false,
         unique_id,
-        map_fd,
-        map_size: 0,
-        map_ptr: null_mut(),
+        map_fd: Some(map_fd),
+        map_size,
+        map_ptr: map_ptr,
     };
 
     Ok(new_map)

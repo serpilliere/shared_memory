@@ -281,7 +281,7 @@ impl Shmem {
         self.mapping.file_map
     }
     #[cfg(any(target_os="freebsd", target_os="linux", target_os="macos"))]
-    pub fn map_id(&self) -> i32 {
-        self.mapping.map_fd as i32
+    pub fn map_id(&mut self) -> Option<i32> {
+        self.mapping.map_fd.take() as Option<i32>
     }
 }
