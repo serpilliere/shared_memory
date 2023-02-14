@@ -277,8 +277,9 @@ impl Shmem {
     }
 
     #[cfg(target_os="windows")]
-    pub fn map_id(&self) -> windows::FileMapping {
-        self.mapping.file_map
+    pub fn map_id(&self) -> Option<i32> {
+        //self.mapping.file_map
+        Some(0)
     }
     #[cfg(any(target_os="freebsd", target_os="linux", target_os="macos"))]
     pub fn map_id(&mut self) -> Option<i32> {
