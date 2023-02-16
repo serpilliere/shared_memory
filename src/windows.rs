@@ -139,6 +139,7 @@ fn new_map(
 ) -> Result<MapData, ShmemError> {
     // Create file to back the shared memory
     let mut file_path = get_tmp_dir()?;
+    println!("File {:?}", file_path);
     file_path.push(unique_id.trim_start_matches('/'));
     debug!(
         "{} persistent_file at {}",
